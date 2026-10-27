@@ -1,0 +1,84 @@
+#include "unetprog.h"
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+//////// RELIABLE UDP CLIENT, made by NOOR ULLAH (Electrical Engineering Department) ///////
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
+#include <setjmp.h>		// setjmp.h contains data abt setjmp() and longjmp()
+
+int val;			// I defined these variables globally so that they can be used by all functions
+jmp_buf env;
+
+void sighandler (int sig)	// SIGALARM handling routine to take appropriate action if SIGALARM is raised
+{
+
+printf("Packet might be lost lemme resend\n");
+longjmp(env,val);				// longjmp() is called and control is taken to the place where setjump set the location
+
+}
+
+int main(int argc, char *argv[])
+{
+
+	struct sigaction new;		// custom type structure sigaction with name new is declared
+
+	new.sa_handler=sighandler;	// in new sa_handler is given the my custom defined routine sighandler for controlling SIGALARM
+	new.sa_flags=0;			//sa_flags in new is set to 0
+	sigemptyset(&new.sa_mask);
+
+	sigaction(SIGALRM,&new,NULL);	// sigaction is called for SIGALARM monitoring
+
+	int clifd;			// array for data storage
+	sockaddr_in srvaddr, fromaddr;	// srvaddr and cliaddr of custom type of struct sockaddr_in
+	socklen_t srvaddrlen, fromaddrlen;	// variables of type socklen_t for addresses lenghths 
+
+	int n, buflen;
+	char buf[MAXBUF], buf2[MAXBUF];	//arrays declared for storage
+
+	if(argc != 3)						// CL arguments are checked
+		err_quit("usage: <progname> <address> <port>");
+
+
+	if((clifd=socket(AF_INET, SOCK_DGRAM, 0)) < 0)	// socket is created usind socket() and returned value is stored in clifd
+		err_sys("socket error");
+	
+	//socket specifications
+	memset(&srvaddr, 0, sizeof(srvaddr));		// srvaddr is made 0 using srvaddr
+	memset(&fromaddr, 0 , sizeof(fromaddr));	// fromaddr is made 0 using fromaddr
+	srvaddr.sin_family = AF_INET;
+	srvaddr.sin_port = htons(atoi(argv[2]));	// port number
+	inet_pton(AF_INET, argv[1], &srvaddr.sin_addr);
+
+	srvaddrlen = sizeof(sockaddr_in);	// address length is stored in srvaddrlen
+
+	printf("\n\t\tWelcome to the NOOR RELIABLE UDP PROGRAM\n\n");
+
+	while(strlen(fgets(buf, sizeof(buf), stdin)) > 1)	// to cater for new-line charecter and data from keyboard is taken using fgets and stored in buf
+	{
+		buflen = strlen(buf);	// length of string in buf is stored in buflen
+
+			val=setjmp(env);	// setjmp() is set to this pointing so that when longjmp() is called it starts from this point and resend packet
+
+			if((n=sendto(clifd, buf, buflen, 0, (sockaddr *) &srvaddr, srvaddrlen)) < 0)	// data is sent using send()
+			err_sys("sendto error");
+
+		fromaddrlen = sizeof(sockaddr_in);
+		
+		alarm(1);			// alarm is set to 1 second and if in 1 second n<0 means data not received then raise SIGALARM
+
+		if((n=recvfrom(clifd, buf2, sizeof(buf2), 0, (sockaddr *) &fromaddr, &fromaddrlen)) < 0)	// data is received but if n<0 means error
+			err_sys("recvfrom error");
+
+		else if(n>0)		// if successfully received mean n>0 then 
+		alarm(0);		// disable alarm
+
+		buf2[n] = 0;
+		printf("%s\n", buf2);	// print data in buf2 i.e received data
+
+	}
+
+	close(clifd);		// close connection 
+
+	return 0;
+}

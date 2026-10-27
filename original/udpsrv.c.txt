@@ -1,0 +1,48 @@
+#include "unetprog.h"
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+/////////////// UDP SERVER, NOOR ULLAH (Electrical Engineering Department) //////////////////
+////////////////////////////////////////////////////////////////////////////////////////////
+
+int main(int argc, char *argv[])
+{
+	int sockfd;		// declaring varialbes
+	sockaddr_in srvaddr, cliaddr;	// srvaddr and cliaddr of custom type of struct sockaddr_in
+	socklen_t cliaddrlen;
+
+	int n, buflen;
+	char buf[MAXBUF];	// array for data storage
+
+	if(argc != 2)					// CL arguments are checked
+		err_quit("usage: <progname> <port>");	// to see the result please give the port number 5555 as I have put 5555 for client built in or you can change it in client program by including agr[3]
+
+
+	if((sockfd=socket(AF_INET, SOCK_DGRAM, 0)) < 0)	// socket() is called and value returned is stored in sockfd, socket is created
+		err_sys("socket error");
+
+	// socket specifications
+	memset(&srvaddr, 0, sizeof(srvaddr));		// srvaddr is made 0 using srvaddr
+	srvaddr.sin_family = AF_INET;
+	srvaddr.sin_port = htons(atoi(argv[1]));
+	srvaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	if(bind(sockfd, (sockaddr *) &srvaddr, sizeof(srvaddr)) < 0)	// bind() is called
+		err_sys("bind error");
+	
+		
+	while(1)	// service client till it closes connection
+	{
+		cliaddrlen = sizeof(sockaddr_in);	// lenght of client address is stored in cliaddrlen
+
+		if((n=recvfrom(sockfd, buf, sizeof(buf), 0, (sockaddr *) &cliaddr, &cliaddrlen)) < 0)	// data is received from client using recvfrom() and is stored in buf
+			err_sys("recv error");
+		else
+		{
+			buflen = n;
+			if((n=sendto(sockfd, buf, buflen, 0, (sockaddr *) &cliaddr, cliaddrlen)) < 0)	// if received successfully then send data back to client using sendto()
+				err_sys("send error");
+		}	
+	}
+
+	return 0;
+}
